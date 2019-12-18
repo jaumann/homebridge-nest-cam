@@ -2,6 +2,8 @@
 
 let Accessory, hap, UUIDGen;
 const Nest = require('./lib/nest').NestAPI;
+const GoogleAuth = require('./lib/google-auth.js');
+const Promise = require('bluebird');
 
 module.exports = (homebridge) => {
   Accessory = homebridge.platformAccessory;
@@ -10,6 +12,19 @@ module.exports = (homebridge) => {
 
   homebridge.registerPlatform('homebridge-nest-cam', 'Nest-cam', NestCamPlatform, true);
 }
+
+const getGoogleAuth = function(config, log) {
+    return new Promise(function (resolve, reject) {
+        const conn = new GoogleAuth(config, log);
+        conn.auth().then(connected => {
+            if (connected) {
+                resolve(conn);
+            } else {
+                reject('Unable to connect to Google authentication service.');
+            }
+        });
+    });
+};
 
 class NestCamPlatform {
   constructor(log, config, api) {
@@ -35,7 +50,15 @@ class NestCamPlatform {
     let accessToken = self.config['access_token'];
     if ( typeof accessToken == 'undefined' )
     {
-      throw new Error('access_token is not defined in the Homebridge config');
+      let googleAuth = self.config['googleAuth'];
+      if ( typeof googleAuth == 'undefined')
+      {
+        throw new Error('access_token is not defined in the Homebridge config');
+      }
+      getGoogleAuth(self.config, self.log)
+        .catch(function(err) {
+          that.log.error(err);
+        });
     }
     self.nestAPI = new Nest(accessToken);
     self.nestAPI.on('cameras', (cameras) => {
